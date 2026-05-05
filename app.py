@@ -113,4 +113,4 @@ m.get_root().html.add_child(folium.Element(legend_html))
 # --- 7. TAMPILKAN DI STREAMLIT ---
 st.title("PGI Business Heatmap Analysis")
 st.write(f"Menampilkan data dari {len(df_clean)} lokasi cabang.")
-st.components.v1.html(m._repr_html_(), height=600)
+st.components.v1.html(m._repr_html_(), height=1000)
