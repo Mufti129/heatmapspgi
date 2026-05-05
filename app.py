@@ -1,6 +1,16 @@
 import folium
 from folium.plugins import HeatMap
 
+
+1. AMBIL DATA DARI GOOGLE SHEETS
+# Mengubah URL edit menjadi URL ekspor CSV
+sheet_id = "1EbLaHBvDpflmxejtAdb0JCXxUuozhoptpiHoAvL7Ba4"
+gid = "1204195088"
+url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+
+# Load data
+df_clean = pd.read_csv(url)
+
 # 1. Inisialisasi Map Utama
 m = folium.Map(location=[df_clean['lat'].mean(), df_clean['lon'].mean()],
                zoom_start=11,
