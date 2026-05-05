@@ -11,7 +11,11 @@ url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=
 
 # Load data
 df_clean = pd.read_csv(url)
+# Load data
+df_clean = pd.read_csv(url)
 
+# Tambahkan baris ini untuk menyeragamkan nama kolom menjadi huruf kecil
+df_clean.columns = df_clean.columns.str.strip().str.lower()
 # 1. Inisialisasi Map Utama
 m = folium.Map(location=[df_clean['lat'].mean(), df_clean['lon'].mean()],
                zoom_start=11,
