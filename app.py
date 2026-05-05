@@ -3,7 +3,7 @@ import folium
 from folium.plugins import HeatMap
 
 
-1. AMBIL DATA DARI GOOGLE SHEETS
+#1. AMBIL DATA DARI GOOGLE SHEETS
 # Mengubah URL edit menjadi URL ekspor CSV
 sheet_id = "1EbLaHBvDpflmxejtAdb0JCXxUuozhoptpiHoAvL7Ba4"
 gid = "1204195088"
