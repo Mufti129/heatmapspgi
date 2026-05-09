@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📍 Dashboard Analisis Cabang")
+st.title("Dashboard Analisis Cabang")
 
 # ============================================
 # LOAD DATA
@@ -36,7 +36,7 @@ def load_data():
     # GANTI LINK RAW GITHUB EXCEL DI SINI
     # ========================================
 
-    url = "https://raw.githubusercontent.com/USERNAME/REPO/main/data/data_cabang.xlsx"
+    url = "https://raw.githubusercontent.com/USERNAME/REPO/main/data/FIX_mining_prediksi_attribute_jumlah.xlsx"
 
     df = pd.read_excel(url)
 
@@ -86,7 +86,7 @@ center_lon = df["lon"].mean()
 
 if menu == "Peta Model GWR":
 
-    st.header("📊 Peta Model GWR")
+    st.header("Peta Model GWR")
 
     variables_to_visualize = [
         'umk',
@@ -206,7 +206,7 @@ if menu == "Peta Model GWR":
 
 elif menu == "Peta Performa Cabang":
 
-    st.header("🔥 Peta Performa Cabang")
+    st.header("Peta Performa Cabang")
 
     m = folium.Map(
         location=[center_lat, center_lon],
