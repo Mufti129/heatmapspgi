@@ -1,4 +1,6 @@
 folium
 streamlit
+streamlit-folium
 pandas
 scikit-learn
+numpy
