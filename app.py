@@ -1,116 +1,382 @@
+# ============================================
+# app.py
+# STREAMLIT + FOLIUM DASHBOARD CABANG
+# MENU:
+# 1. PETA MODEL GWR
+# 2. PETA PERFORMA CABANG
+# ============================================
+
+import streamlit as st
 import pandas as pd
 import folium
-from folium.plugins import HeatMap
-import streamlit as st
+import numpy as np
 
-# --- 1. PENGATURAN DATA ---
-# URL Google Sheets (Sudah diatur untuk ekspor CSV)
-sheet_id = "1EbLaHBvDpflmxejtAdb0JCXxUuozhoptpiHoAvL7Ba4"
-gid = "1204195088"
-url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+from folium.plugins import HeatMap, MarkerCluster
+from streamlit_folium import st_folium
 
-@st.cache_data
-def load_data(url):
-    df = pd.read_csv(url)
-    # Menyeragamkan nama kolom (hapus spasi & kecilkan huruf)
-    df.columns = df.columns.str.strip().str.lower()
-    
-    # Konversi kolom numerik & hapus baris yang rusak/kosong
-    cols_to_fix = ['lat', 'lon', 'avg_omzet', 'umk', 'penduduk']
-    for col in cols_to_fix:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    # Hapus data yang tidak memiliki koordinat valid
-    df = df.dropna(subset=['lat', 'lon'])
-    return df
+# ============================================
+# CONFIG PAGE
+# ============================================
 
-df_clean = load_data(url)
-
-# --- 2. INISIALISASI PETA ---
-m = folium.Map(
-    location=[df_clean['lat'].mean(), df_clean['lon'].mean()],
-    zoom_start=11,
-    tiles='CartoDB positron'
+st.set_page_config(
+    page_title="Dashboard Peta Cabang",
+    layout="wide"
 )
 
-# --- 3. FEATURE GROUPS ---
-fg_list = {
-    'omzet': folium.FeatureGroup(name='Sebaran Omzet (Aktual)'),
-    'umk': folium.FeatureGroup(name='Sebaran UMK', show=False),
-    'cabang': folium.FeatureGroup(name='Lokasi Cabang (Kota vs Desa)'),
-    'jalan': folium.FeatureGroup(name='Lokasi Jalan', show=False)
-}
+st.title("📍 Dashboard Analisis Cabang")
 
-# --- 4. HEATMAPS ---
-# Heatmap Omzet
-data_omzet = df_clean[['lat', 'lon', 'avg_omzet']].dropna().values.tolist()
-HeatMap(data_omzet, radius=15, blur=20, 
-        gradient={0.4: 'blue', 0.7: 'lime', 1: 'yellow'}).add_to(fg_list['omzet'])
+# ============================================
+# LOAD DATA
+# ============================================
 
-# Heatmap UMK
-data_umk = df_clean[['lat', 'lon', 'umk']].dropna().values.tolist()
-HeatMap(data_umk, radius=15, blur=20,
-        gradient={0.4: 'purple', 0.7: 'red', 1: 'orange'}).add_to(fg_list['umk'])
+@st.cache_data
+def load_data():
 
-# --- 5. MARKER (LOOP TUNGGAL) ---
-for i, row in df_clean.iterrows():
-    # Logika Warna Wilayah
-    cat = str(row.get('kategori_wilayah', '')).lower()
-    color_wilayah = 'red' if 'kota' in cat else 'blue' if 'desa' in cat else 'black'
-    
-    # Logika Warna Jalan
-    road_type = str(row.get('jalan', '')).lower()
-    road_map = {
-        'primary': 'red', 'tertiary': 'red', 'residential': 'beige', 
-        'trunk': 'orange', 'secondary': 'blue', 'living_street': 'purple'
-    }
-    color_jalan = road_map.get(road_type, 'black')
+    # ========================================
+    # GANTI LINK RAW GITHUB EXCEL DI SINI
+    # ========================================
 
-    popup_content = f"""
-        <div style='font-family: Arial; font-size: 12px; width: 150px;'>
-            <b>Cabang:</b> {row.get('nama_cabang', 'N/A')}<br>
-            <b>Omzet:</b> Rp{row.get('avg_omzet', 0):,.0f}<br>
-            <b>Jalan:</b> {road_type}<br>
-            <b>Penduduk:</b> {row.get('penduduk', 0):,.0f}
-        </div>
+    url = "https://raw.githubusercontent.com/USERNAME/REPO/main/data/data_cabang.xlsx"
+
+    df = pd.read_excel(url)
+
+    return df
+
+df = load_data()
+
+# ============================================
+# SIDEBAR
+# ============================================
+
+st.sidebar.title("Menu Dashboard")
+
+menu = st.sidebar.radio(
+    "Pilih Menu",
+    [
+        "Peta Model GWR",
+        "Peta Performa Cabang"
+    ]
+)
+
+# ============================================
+# FILTER
+# ============================================
+
+st.sidebar.subheader("Filter Data")
+
+selected_wilayah = st.sidebar.multiselect(
+    "Kategori Wilayah",
+    options=df["kategori_wilayah"].dropna().unique(),
+    default=df["kategori_wilayah"].dropna().unique()
+)
+
+df = df[df["kategori_wilayah"].isin(selected_wilayah)]
+
+# ============================================
+# CENTER MAP
+# ============================================
+
+center_lat = df["lat"].mean()
+center_lon = df["lon"].mean()
+
+# ============================================
+# MENU 1
+# PETA MODEL GWR
+# ============================================
+
+if menu == "Peta Model GWR":
+
+    st.header("📊 Peta Model GWR")
+
+    variables_to_visualize = [
+        'umk',
+        'penduduk',
+        'kemiskinan',
+        'jumlah_kompetitor',
+        'jumlah_pasar_tradisional',
+        'jarak_pasar',
+        'lebar_ruko',
+        'jumlah_bangunan',
+        'commercial_hub_index',
+        'premium_spot_score',
+        'comp_per_pop'
+    ]
+
+    selected_var = st.selectbox(
+        "Pilih Variabel GWR",
+        variables_to_visualize
+    )
+
+    # ========================================
+    # KOLOM LOCAL COEF
+    # contoh:
+    # umk_local_coef
+    # penduduk_local_coef
+    # dst
+    # ========================================
+
+    coef_col = f"{selected_var}_local_coef"
+
+    m_gwr = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=10,
+        tiles="CartoDB positron"
+    )
+
+    marker_cluster = MarkerCluster().add_to(m_gwr)
+
+    for _, row in df.iterrows():
+
+        local_coef = row[coef_col]
+
+        abs_local_coef = abs(local_coef * 10)
+
+        radius_val = max(3, min(abs_local_coef, 20))
+
+        color = "red" if local_coef > 0 else "blue"
+
+        popup_html = f"""
+        <b>Cabang:</b> {row['nama_cabang']} <br>
+        <b>Variabel:</b> {selected_var} <br>
+        <b>Koefisien Lokal:</b> {local_coef:.4f} <br>
+        <b>Nilai Variabel:</b> {row[selected_var]:,.0f}
+        """
+
+        folium.CircleMarker(
+            location=[row["lat"], row["lon"]],
+            radius=radius_val,
+            color=color,
+            fill=True,
+            fill_color=color,
+            fill_opacity=0.7,
+            popup=popup_html
+        ).add_to(marker_cluster)
+
+    # ========================================
+    # TOP 5 HIGHLIGHT
+    # ========================================
+
+    top5 = df.nlargest(5, coef_col)
+
+    for _, row in top5.iterrows():
+
+        folium.Marker(
+            location=[row["lat"], row["lon"]],
+            tooltip=f"TOP GWR - {row['nama_cabang']}",
+            icon=folium.Icon(color="green", icon="star")
+        ).add_to(m_gwr)
+
+    # ========================================
+    # LEGEND
+    # ========================================
+
+    legend_html = """
+    <div style="
+        position: fixed;
+        bottom: 50px;
+        left: 50px;
+        width: 250px;
+        height: 120px;
+        background-color: white;
+        z-index:9999;
+        padding:10px;
+        border:2px solid grey;
+        font-size:14px;
+    ">
+    <b>Legenda GWR</b><br>
+    🔴 Pengaruh Positif<br>
+    🔵 Pengaruh Negatif<br>
+    ⭐ Top 5 Lokasi<br>
+    Ukuran marker = kekuatan pengaruh
+    </div>
     """
 
-    # Marker Wilayah ke Layer Cabang
-    folium.CircleMarker(
-        location=[row['lat'], row['lon']], radius=5, color=color_wilayah,
-        fill=True, fill_opacity=0.7, popup=folium.Popup(popup_content, max_width=200)
-    ).add_to(fg_list['cabang'])
-    
-    # Marker Jalan ke Layer Jalan
-    folium.CircleMarker(
-        location=[row['lat'], row['lon']], radius=5, color=color_jalan,
-        fill=True, fill_opacity=0.3, popup=folium.Popup(popup_content, max_width=200)
-    ).add_to(fg_list['jalan'])
+    m_gwr.get_root().html.add_child(folium.Element(legend_html))
 
-# --- 6. LAYER CONTROL & LEGENDA ---
-for fg in fg_list.values():
-    fg.add_to(m)
+    st_folium(
+        m_gwr,
+        width=1400,
+        height=700
+    )
 
-folium.LayerControl(collapsed=False).add_to(m)
+# ============================================
+# MENU 2
+# PETA PERFORMA CABANG
+# ============================================
 
-legend_html = '''
-     <div style="position: fixed; bottom: 50px; left: 50px; width: 200px; 
-                  border:2px solid grey; z-index:9999; font-size:11px;
-                  background-color:white; opacity:0.85; padding: 10px; font-family: sans-serif;">
-        <b>Legenda Wilayah</b><br>
-        <i style="background:red; border-radius:50%; width:10px; height:10px; display:inline-block;"></i> Perkotaan<br>
-        <i style="background:blue; border-radius:50%; width:10px; height:10px; display:inline-block;"></i> Perdesaan<br>
-        <hr>
-        <b>Warna Jalan</b><br>
-        <i style="background:red; width:10px; height:10px; display:inline-block;"></i> Utama (Primary)<br>
-        <i style="background:blue; width:10px; height:10px; display:inline-block;"></i> Sekunder<br>
-        <i style="background:orange; width:10px; height:10px; display:inline-block;"></i> Trunk
-     </div>
-'''
-m.get_root().html.add_child(folium.Element(legend_html))
+elif menu == "Peta Performa Cabang":
 
-# --- 7. TAMPILKAN DI STREAMLIT ---
-st.title("PGI Business Heatmap Analysis")
-st.write(f"Menampilkan data dari {len(df_clean)} lokasi cabang.")
-st.components.v1.html(m._repr_html_(), height=1000)
+    st.header("🔥 Peta Performa Cabang")
+
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=11,
+        tiles='CartoDB positron'
+    )
+
+    # ========================================
+    # LAYER 1
+    # HEATMAP OMZET
+    # ========================================
+
+    fg1 = folium.FeatureGroup(name='Sebaran Omzet')
+
+    heat_omzet = [
+        [row['lat'], row['lon'], row['avg_omzet']]
+        for _, row in df.iterrows()
+    ]
+
+    HeatMap(
+        heat_omzet,
+        radius=15,
+        blur=20,
+        gradient={
+            0.4: 'blue',
+            0.7: 'lime',
+            1: 'yellow'
+        }
+    ).add_to(fg1)
+
+    fg1.add_to(m)
+
+    # ========================================
+    # LAYER 2
+    # HEATMAP UMK
+    # ========================================
+
+    fg2 = folium.FeatureGroup(
+        name='Sebaran UMK',
+        show=False
+    )
+
+    heat_umk = [
+        [row['lat'], row['lon'], row['umk']]
+        for _, row in df.iterrows()
+    ]
+
+    HeatMap(
+        heat_umk,
+        radius=15,
+        blur=20
+    ).add_to(fg2)
+
+    fg2.add_to(m)
+
+    # ========================================
+    # LAYER 3
+    # MARKER CABANG
+    # ========================================
+
+    fg3 = folium.FeatureGroup(
+        name='Lokasi Cabang'
+    )
+
+    for _, row in df.iterrows():
+
+        # ====================================
+        # WARNA BERDASARKAN WILAYAH
+        # ====================================
+
+        if row['kategori_wilayah'] == 'Perkotaan':
+            marker_color = 'red'
+
+        elif row['kategori_wilayah'] == 'Perdesaan':
+            marker_color = 'blue'
+
+        else:
+            marker_color = 'black'
+
+        # ====================================
+        # PERFORMANCE COLOR
+        # ====================================
+
+        omzet = row['avg_omzet']
+
+        if omzet >= df['avg_omzet'].quantile(0.75):
+            radius = 12
+
+        elif omzet >= df['avg_omzet'].quantile(0.50):
+            radius = 8
+
+        else:
+            radius = 5
+
+        popup_html = f"""
+        <b>Cabang:</b> {row['nama_cabang']}<br>
+        <b>Wilayah:</b> {row['kategori_wilayah']}<br>
+        <b>Omzet:</b> Rp {row['avg_omzet']:,.0f}<br>
+        <b>Jalan:</b> {row['jalan']}<br>
+        <b>Lebar Ruko:</b> {row['lebar_ruko']}<br>
+        <b>Penduduk:</b> {row['penduduk']:,.0f}<br>
+        <b>Kompetitor:</b> {row['jumlah_kompetitor']:,.0f}<br>
+        <b>Pasar:</b> {row['jumlah_pasar_tradisional']:,.0f}
+        """
+
+        folium.CircleMarker(
+            location=[row['lat'], row['lon']],
+            radius=radius,
+            color=marker_color,
+            fill=True,
+            fill_opacity=0.7,
+            popup=popup_html
+        ).add_to(fg3)
+
+    fg3.add_to(m)
+
+    # ========================================
+    # TOP 5 CABANG
+    # ========================================
+
+    top5_omzet = df.nlargest(5, "avg_omzet")
+
+    for _, row in top5_omzet.iterrows():
+
+        folium.Marker(
+            location=[row["lat"], row["lon"]],
+            tooltip=f"TOP OMZET - {row['nama_cabang']}",
+            icon=folium.Icon(color="green", icon="star")
+        ).add_to(m)
+
+    # ========================================
+    # LAYER CONTROL
+    # ========================================
+
+    folium.LayerControl(
+        collapsed=False
+    ).add_to(m)
+
+    # ========================================
+    # LEGEND
+    # ========================================
+
+    legend_html = """
+    <div style="
+        position: fixed;
+        bottom: 50px;
+        left: 50px;
+        width: 250px;
+        height: 170px;
+        background-color: white;
+        z-index:9999;
+        padding:10px;
+        border:2px solid grey;
+        font-size:14px;
+    ">
+    <b>Legenda</b><br>
+    🔴 Perkotaan<br>
+    🔵 Perdesaan<br>
+    ⚫ Perkampungan<br>
+    ⭐ Top 5 Omzet<br><br>
+    Ukuran marker = performa omzet
+    </div>
+    """
+
+    m.get_root().html.add_child(
+        folium.Element(legend_html)
+    )
+
+    st_folium(
+        m,
+        width=1400,
+        height=700
+    )
