@@ -115,7 +115,7 @@ col1.metric(
 )
 
 col2.metric(
-    "Total Omzet",
+    "Total Avg Omzet",
     f"Rp {df['avg_omzet'].sum():,.0f}"
 )
 
