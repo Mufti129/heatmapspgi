@@ -1,29 +1,30 @@
 # ============================================
 # app.py
-# STREAMLIT + FOLIUM DASHBOARD CABANG
-# MENU:
-# 1. PETA MODEL GWR
-# 2. PETA PERFORMA CABANG
+# DASHBOARD ANALISIS CABANG
+# STREAMLIT + FOLIUM
 # ============================================
 
 import streamlit as st
 import pandas as pd
 import folium
 import numpy as np
+import warnings
 
 from folium.plugins import HeatMap, MarkerCluster
 from streamlit_folium import st_folium
+
+warnings.filterwarnings("ignore")
 
 # ============================================
 # CONFIG PAGE
 # ============================================
 
 st.set_page_config(
-    page_title="Dashboard Peta Cabang",
+    page_title="Dashboard Analisis Cabang",
     layout="wide"
 )
 
-st.title("Dashboard Analisis Cabang")
+st.title("📍 Dashboard Analisis Cabang")
 
 # ============================================
 # LOAD DATA
@@ -32,15 +33,31 @@ st.title("Dashboard Analisis Cabang")
 @st.cache_data
 def load_data():
 
-    # ========================================
-    # GANTI LINK RAW GITHUB EXCEL DI SINI
-    # ========================================
+    try:
 
-    url = "https://raw.githubusercontent.com/USERNAME/REPO/main/data/FIX_mining_prediksi_attribute_jumlah.xlsx"
+        # ====================================
+        # LOAD EXCEL LOKAL DARI GITHUB REPO
+        # ====================================
 
-    df = pd.read_excel(url)
+        df = pd.read_excel(
+            "data/FIX_mining_prediksi_attribute_jumlah.xlsx",
+            engine="openpyxl"
+        )
 
-    return df
+        # ====================================
+        # CLEANING
+        # ====================================
+
+        df = df.dropna(subset=['lat', 'lon'])
+
+        df = df.fillna(0)
+
+        return df
+
+    except Exception as e:
+
+        st.error(f"Gagal load data: {e}")
+        st.stop()
 
 df = load_data()
 
@@ -48,7 +65,7 @@ df = load_data()
 # SIDEBAR
 # ============================================
 
-st.sidebar.title("Menu Dashboard")
+st.sidebar.title("📌 Menu Dashboard")
 
 menu = st.sidebar.radio(
     "Pilih Menu",
@@ -59,11 +76,12 @@ menu = st.sidebar.radio(
 )
 
 # ============================================
-# FILTER
+# FILTER DATA
 # ============================================
 
-st.sidebar.subheader("Filter Data")
+st.sidebar.subheader("🔍 Filter")
 
+# FILTER WILAYAH
 selected_wilayah = st.sidebar.multiselect(
     "Kategori Wilayah",
     options=df["kategori_wilayah"].dropna().unique(),
@@ -71,6 +89,51 @@ selected_wilayah = st.sidebar.multiselect(
 )
 
 df = df[df["kategori_wilayah"].isin(selected_wilayah)]
+
+# SEARCH CABANG
+search_cabang = st.sidebar.text_input(
+    "Cari Nama Cabang"
+)
+
+if search_cabang:
+
+    df = df[
+        df['nama_cabang']
+        .astype(str)
+        .str.contains(search_cabang, case=False)
+    ]
+
+# ============================================
+# METRICS
+# ============================================
+
+col1, col2, col3 = st.columns(3)
+
+col1.metric(
+    "Jumlah Cabang",
+    len(df)
+)
+
+col2.metric(
+    "Total Omzet",
+    f"Rp {df['avg_omzet'].sum():,.0f}"
+)
+
+col3.metric(
+    "Rata-rata UMK",
+    f"Rp {df['umk'].mean():,.0f}"
+)
+
+# ============================================
+# DOWNLOAD DATA
+# ============================================
+
+st.download_button(
+    label="⬇️ Download Data CSV",
+    data=df.to_csv(index=False),
+    file_name="data_cabang.csv",
+    mime="text/csv"
+)
 
 # ============================================
 # CENTER MAP
@@ -86,7 +149,7 @@ center_lon = df["lon"].mean()
 
 if menu == "Peta Model GWR":
 
-    st.header("Peta Model GWR")
+    st.header("📊 Peta Model GWR")
 
     variables_to_visualize = [
         'umk',
@@ -107,15 +170,23 @@ if menu == "Peta Model GWR":
         variables_to_visualize
     )
 
+    coef_col = f"{selected_var}_local_coef"
+
     # ========================================
-    # KOLOM LOCAL COEF
-    # contoh:
-    # umk_local_coef
-    # penduduk_local_coef
-    # dst
+    # VALIDASI KOLOM
     # ========================================
 
-    coef_col = f"{selected_var}_local_coef"
+    if coef_col not in df.columns:
+
+        st.error(
+            f"Kolom '{coef_col}' belum tersedia di dataset"
+        )
+
+        st.stop()
+
+    # ========================================
+    # MAP
+    # ========================================
 
     m_gwr = folium.Map(
         location=[center_lat, center_lon],
@@ -124,6 +195,10 @@ if menu == "Peta Model GWR":
     )
 
     marker_cluster = MarkerCluster().add_to(m_gwr)
+
+    # ========================================
+    # MARKER GWR
+    # ========================================
 
     for _, row in df.iterrows():
 
@@ -136,9 +211,9 @@ if menu == "Peta Model GWR":
         color = "red" if local_coef > 0 else "blue"
 
         popup_html = f"""
-        <b>Cabang:</b> {row['nama_cabang']} <br>
-        <b>Variabel:</b> {selected_var} <br>
-        <b>Koefisien Lokal:</b> {local_coef:.4f} <br>
+        <b>Cabang:</b> {row['nama_cabang']}<br>
+        <b>Variabel:</b> {selected_var}<br>
+        <b>Koefisien Lokal:</b> {local_coef:.4f}<br>
         <b>Nilai Variabel:</b> {row[selected_var]:,.0f}
         """
 
@@ -153,7 +228,7 @@ if menu == "Peta Model GWR":
         ).add_to(marker_cluster)
 
     # ========================================
-    # TOP 5 HIGHLIGHT
+    # TOP 5 GWR
     # ========================================
 
     top5 = df.nlargest(5, coef_col)
@@ -163,8 +238,20 @@ if menu == "Peta Model GWR":
         folium.Marker(
             location=[row["lat"], row["lon"]],
             tooltip=f"TOP GWR - {row['nama_cabang']}",
-            icon=folium.Icon(color="green", icon="star")
+            icon=folium.Icon(
+                color="green",
+                icon="star"
+            )
         ).add_to(m_gwr)
+
+    # ========================================
+    # AUTO FIT MAP
+    # ========================================
+
+    sw = df[['lat', 'lon']].min().values.tolist()
+    ne = df[['lat', 'lon']].max().values.tolist()
+
+    m_gwr.fit_bounds([sw, ne])
 
     # ========================================
     # LEGEND
@@ -176,7 +263,7 @@ if menu == "Peta Model GWR":
         bottom: 50px;
         left: 50px;
         width: 250px;
-        height: 120px;
+        height: 130px;
         background-color: white;
         z-index:9999;
         padding:10px;
@@ -186,12 +273,14 @@ if menu == "Peta Model GWR":
     <b>Legenda GWR</b><br>
     🔴 Pengaruh Positif<br>
     🔵 Pengaruh Negatif<br>
-    ⭐ Top 5 Lokasi<br>
+    ⭐ Top 5 Lokasi<br><br>
     Ukuran marker = kekuatan pengaruh
     </div>
     """
 
-    m_gwr.get_root().html.add_child(folium.Element(legend_html))
+    m_gwr.get_root().html.add_child(
+        folium.Element(legend_html)
+    )
 
     st_folium(
         m_gwr,
@@ -206,7 +295,7 @@ if menu == "Peta Model GWR":
 
 elif menu == "Peta Performa Cabang":
 
-    st.header("Peta Performa Cabang")
+    st.header("🔥 Peta Performa Cabang")
 
     m = folium.Map(
         location=[center_lat, center_lon],
@@ -215,11 +304,12 @@ elif menu == "Peta Performa Cabang":
     )
 
     # ========================================
-    # LAYER 1
-    # HEATMAP OMZET
+    # LAYER 1 - HEATMAP OMZET
     # ========================================
 
-    fg1 = folium.FeatureGroup(name='Sebaran Omzet')
+    fg1 = folium.FeatureGroup(
+        name='Sebaran Omzet'
+    )
 
     heat_omzet = [
         [row['lat'], row['lon'], row['avg_omzet']]
@@ -240,8 +330,7 @@ elif menu == "Peta Performa Cabang":
     fg1.add_to(m)
 
     # ========================================
-    # LAYER 2
-    # HEATMAP UMK
+    # LAYER 2 - HEATMAP UMK
     # ========================================
 
     fg2 = folium.FeatureGroup(
@@ -263,8 +352,7 @@ elif menu == "Peta Performa Cabang":
     fg2.add_to(m)
 
     # ========================================
-    # LAYER 3
-    # MARKER CABANG
+    # LAYER 3 - MARKER CABANG
     # ========================================
 
     fg3 = folium.FeatureGroup(
@@ -274,31 +362,37 @@ elif menu == "Peta Performa Cabang":
     for _, row in df.iterrows():
 
         # ====================================
-        # WARNA BERDASARKAN WILAYAH
+        # WARNA WILAYAH
         # ====================================
 
         if row['kategori_wilayah'] == 'Perkotaan':
+
             marker_color = 'red'
 
         elif row['kategori_wilayah'] == 'Perdesaan':
+
             marker_color = 'blue'
 
         else:
+
             marker_color = 'black'
 
         # ====================================
-        # PERFORMANCE COLOR
+        # RADIUS BERDASARKAN OMZET
         # ====================================
 
         omzet = row['avg_omzet']
 
         if omzet >= df['avg_omzet'].quantile(0.75):
+
             radius = 12
 
         elif omzet >= df['avg_omzet'].quantile(0.50):
+
             radius = 8
 
         else:
+
             radius = 5
 
         popup_html = f"""
@@ -317,6 +411,7 @@ elif menu == "Peta Performa Cabang":
             radius=radius,
             color=marker_color,
             fill=True,
+            fill_color=marker_color,
             fill_opacity=0.7,
             popup=popup_html
         ).add_to(fg3)
@@ -324,7 +419,7 @@ elif menu == "Peta Performa Cabang":
     fg3.add_to(m)
 
     # ========================================
-    # TOP 5 CABANG
+    # TOP 5 OMZET
     # ========================================
 
     top5_omzet = df.nlargest(5, "avg_omzet")
@@ -334,7 +429,10 @@ elif menu == "Peta Performa Cabang":
         folium.Marker(
             location=[row["lat"], row["lon"]],
             tooltip=f"TOP OMZET - {row['nama_cabang']}",
-            icon=folium.Icon(color="green", icon="star")
+            icon=folium.Icon(
+                color="green",
+                icon="star"
+            )
         ).add_to(m)
 
     # ========================================
@@ -344,6 +442,15 @@ elif menu == "Peta Performa Cabang":
     folium.LayerControl(
         collapsed=False
     ).add_to(m)
+
+    # ========================================
+    # AUTO FIT MAP
+    # ========================================
+
+    sw = df[['lat', 'lon']].min().values.tolist()
+    ne = df[['lat', 'lon']].max().values.tolist()
+
+    m.fit_bounds([sw, ne])
 
     # ========================================
     # LEGEND
