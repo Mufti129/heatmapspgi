@@ -40,7 +40,7 @@ def load_data():
         # ====================================
 
         df = pd.read_excel(
-            "data/FIX_mining_prediksi_attribute_jumlah.xlsx",
+            "data/FIX_mining_prediksi_attribute_jumlah_!.xlsx",
             engine="openpyxl"
         )
 
