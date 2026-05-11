@@ -24,7 +24,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("📍 Dashboard Analisis Cabang")
+st.title("Dashboard Analisis Cabang")
 
 # ============================================
 # LOAD DATA
@@ -65,7 +65,7 @@ df = load_data()
 # SIDEBAR
 # ============================================
 
-st.sidebar.title("📌 Menu Dashboard")
+st.sidebar.title("Menu Dashboard")
 
 menu = st.sidebar.radio(
     "Pilih Menu",
@@ -79,7 +79,7 @@ menu = st.sidebar.radio(
 # FILTER DATA
 # ============================================
 
-st.sidebar.subheader("🔍 Filter")
+st.sidebar.subheader("Filter")
 
 # FILTER WILAYAH
 selected_wilayah = st.sidebar.multiselect(
@@ -129,7 +129,7 @@ col3.metric(
 # ============================================
 
 st.download_button(
-    label="⬇️ Download Data CSV",
+    label="Download Data CSV",
     data=df.to_csv(index=False),
     file_name="data_cabang.csv",
     mime="text/csv"
@@ -149,7 +149,7 @@ center_lon = df["lon"].mean()
 
 if menu == "Peta Model GWR":
 
-    st.header("📊 Peta Model GWR")
+    st.header("Peta Model GWR")
 
     variables_to_visualize = [
         'umk',
@@ -295,7 +295,7 @@ if menu == "Peta Model GWR":
 
 elif menu == "Peta Performa Cabang":
 
-    st.header("🔥 Peta Performa Cabang")
+    st.header("Peta Performa Cabang")
 
     m = folium.Map(
         location=[center_lat, center_lon],
