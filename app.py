@@ -152,7 +152,6 @@ if menu == "Peta Model GWR":
     st.header("Peta Model GWR")
 
     variables_to_visualize = [
-        'umk',
         'penduduk',
         'kemiskinan',
         'jumlah_kompetitor',
